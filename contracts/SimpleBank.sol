@@ -45,10 +45,10 @@ contract SimpleBank {
     /// @return The balance remaining for the bank
     function register(string memory bank_name, uint deposit_rate, uint loan_rate) public returns (uint) {
         require(!banks[msg.sender].isUsed,"You have been registered!");
-        require(loan_rate < max_loan_rate && deposit_rate < max_deposit_rate,"Wrong rate!");
+        require(loan_rate <= max_loan_rate && deposit_rate <= max_deposit_rate,"Wrong rate!");
         address[] memory accounts = new address[](1);
 
-        banks[msg.sender] = Bank(bank_name, 1000000000, deposit_rate, loan_rate, accounts, true);
+        banks[msg.sender] = Bank(bank_name, 10000000000, deposit_rate, loan_rate, accounts, true);
         bank_accounts[bank_accounts.length++] = msg.sender;
 
         return banks[msg.sender].balance;
@@ -138,7 +138,7 @@ contract SimpleBank {
         r.amount = new_amount;
         require(r.amount > amount, "You pay too much!");
         r.amount -= amount;
-        banks[bank].deposit_records[msg.sender] = r;
+        banks[bank].loan_records[msg.sender] = r;
         // TODO: make it more accurate
         banks[bank].balance += amount;
         return banks[bank].loan_records[msg.sender].amount;
@@ -156,23 +156,23 @@ contract SimpleBank {
 
     /// @notice Bank borrow money from bank
     /// @return The total balance of the bank after the borrow is made
-    function borrow_from_bank(uint amount, address bank) public returns (uint) {
+    function borrow_from_bank(uint amount, address bank) public returns (uint, uint) {
         require(banks[bank].isUsed, "Bank is not registered");
-        require(banks[msg.sender].isUsed, "Bank is not registered");
+        require(banks[msg.sender].isUsed, "You are not registered");
         require(banks[bank].balance > amount, "No enough money");
 
         banks[msg.sender].balance += amount;
         banks[bank].balance -= amount;
         actions[actions.length++] = Action(block.number, bank, msg.sender, amount);
 
-        return banks[msg.sender].balance;
+        return (banks[msg.sender].balance, banks[msg.sender].balance);
     }
 
     /// @notice bank update the rate
     /// @return the new rate
-    function update_rate(uint deposit_rate, uint loan_rate, address bank) public returns (uint, uint) {
+    function update_rate(uint deposit_rate, uint loan_rate) public returns (uint, uint) {
         require(banks[msg.sender].isUsed, "Bank is not registered");
-        require(loan_rate < max_loan_rate && deposit_rate < max_deposit_rate,"Wrong rate!");
+        require(loan_rate <= max_loan_rate && deposit_rate <= max_deposit_rate,"Wrong rate!");
         uint bn = block.number;
         // the rate changed, so we should calculate the amount
         uint n = banks[msg.sender].accounts.length;
@@ -181,7 +181,7 @@ contract SimpleBank {
 
             if(banks[msg.sender].deposit_records[k].isUsed) {
                 Record memory r = banks[msg.sender].deposit_records[k];
-                uint new_amount = (((bn-r.start) * banks[bank].deposit_rate * r.amount) / 1000) + r.amount;
+                uint new_amount = (((bn-r.start) * banks[msg.sender].deposit_rate * r.amount) / 1000) + r.amount;
                 r.start = bn;
                 r.amount = new_amount;
                 banks[msg.sender].deposit_records[k] = r;
@@ -189,7 +189,7 @@ contract SimpleBank {
 
             if(banks[msg.sender].loan_records[k].isUsed) {
                 Record memory r = banks[msg.sender].loan_records[k];
-                uint new_amount = (((bn-r.start) * banks[bank].loan_rate * r.amount) / 1000) + r.amount;
+                uint new_amount = (((bn-r.start) * banks[msg.sender].loan_rate * r.amount) / 1000) + r.amount;
                 r.start = bn;
                 r.amount = new_amount;
                 banks[msg.sender].loan_records[k] = r;
